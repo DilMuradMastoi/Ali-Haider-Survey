@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isOfficer() {
+      return signedIn() && request.auth.token.email in [
+        "replace-with-owner@gmail.com"
+      ];
+    }
+
+    match /submissions/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isOfficer());
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.answers is map;
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.uid == resource.data.uid;
+      allow delete: if false;
+    }
+
+    match /messages/{messageId} {
+      allow create: if signedIn()
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.uid is string
+        && (
+          (request.resource.data.senderRole == 'user'
+            && request.resource.data.uid == request.auth.uid)
+          ||
+          (isOfficer() && request.resource.data.senderRole == 'officer')
+        );
+      allow read: if signedIn()
+        && (resource.data.uid == request.auth.uid || isOfficer());
+      allow update: if signedIn()
+        && isOfficer()
+        && request.resource.data.uid == resource.data.uid;
+      allow delete: if false;
+    }
+  }
+}
